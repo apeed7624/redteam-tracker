@@ -1,0 +1,1284 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>紅隊服務專案追蹤</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --ink:#16181d; --panel:#20232b; --panel-2:#1a1d24; --line:#2c313b;
+    --paper:#f6f6f3; --card:#ffffff; --ink-on:#1c1e24; --muted:#6a6f7a;
+    --red:#c0392b; --red-dim:#a5342a;
+    --amber:#c98a2b; --green:#2f9e63; --slate:#8791a1; --blue:#3a6ea5;
+    --shadow:0 1px 2px rgba(20,22,29,.06),0 4px 14px rgba(20,22,29,.06);
+    --r:10px;
+    --serif:Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink-on);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;line-height:1.5;font-size:15px}
+  .wrap{max-width:1440px;margin:0 auto;padding:0 32px 64px}
+
+  /* ---- Masthead ---- */
+  header.top{background:var(--ink);color:#eceef2;margin-bottom:26px}
+  .top-inner{max-width:1440px;margin:0 auto;padding:22px 32px 24px;display:flex;
+    align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:14px}
+  .mark{width:34px;height:34px;border-radius:7px;background:var(--red);position:relative;flex:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+  .mark::before,.mark::after{content:"";position:absolute;background:#fff;border-radius:1px}
+  .mark::before{width:15px;height:2px;top:16px;left:9.5px;transform:rotate(45deg)}
+  .mark::after{width:15px;height:2px;top:16px;left:9.5px;transform:rotate(-45deg)}
+  h1{font-family:var(--serif);font-weight:600;font-size:22px;margin:0;letter-spacing:.2px}
+  .brand .sub{font-size:12px;color:#9aa1ad;margin-top:2px;letter-spacing:.4px}
+  .top-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{font-family:var(--sans);font-size:12.5px;border:1px solid var(--line);background:var(--panel);
+    color:#dfe3ea;padding:7px 13px;border-radius:7px;cursor:pointer;transition:.13s;white-space:nowrap}
+  .btn:hover{background:#2a2e37;border-color:#3a404c}
+  .btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+  .btn.primary{background:var(--red);border-color:var(--red-dim);color:#fff}
+  .btn.primary:hover{background:var(--red-dim)}
+  .btn.ghost{background:transparent}
+
+  /* ---- KPI row ---- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px}
+  .kpi{background:var(--card);border:1px solid #e7e7e2;border-radius:var(--r);padding:15px 16px;box-shadow:var(--shadow)}
+  .kpi .lab{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:600}
+  .kpi .val{font-family:var(--serif);font-size:32px;font-weight:600;line-height:1;margin-top:9px;
+    font-variant-numeric:tabular-nums}
+  .kpi .val small{font-size:14px;color:var(--muted);font-family:var(--sans);margin-left:3px}
+  .kpi.accent .val{color:var(--red)}
+  .kpi.win .val{color:var(--green)}
+
+  section.block{background:var(--card);border:1px solid #e7e7e2;border-radius:var(--r);
+    box-shadow:var(--shadow);margin-bottom:22px}
+  .block-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding:16px 20px 0;flex-wrap:wrap}
+  .block-hd h2{font-family:var(--serif);font-size:16px;font-weight:600;margin:0}
+  .block-hd .note{font-size:12px;color:var(--muted)}
+  .block-body{padding:16px 20px 20px}
+
+  /* ---- Funnel ---- */
+  .funnel{display:flex;gap:10px;align-items:stretch}
+  .fstep{flex:1;min-width:0;border-radius:8px;padding:13px 14px;color:#fff;position:relative;
+    display:flex;flex-direction:column;justify-content:space-between;min-height:78px}
+  .fstep .n{font-family:var(--serif);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+  .fstep .t{font-size:12px;font-weight:600;opacity:.95;line-height:1.3}
+  .fstep .idx{position:absolute;top:9px;right:11px;font-size:10px;opacity:.6;font-variant-numeric:tabular-nums}
+
+  /* ---- Two column mid ---- */
+  .mid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .bar-row{display:flex;align-items:center;gap:12px;margin:9px 0}
+  .bar-row .name{width:78px;font-size:13px;flex:none;text-align:right;color:#333}
+  .bar-track{flex:1;background:#eceae4;border-radius:5px;height:22px;overflow:hidden;position:relative}
+  .bar-fill{height:100%;background:var(--slate);border-radius:5px 0 0 5px;min-width:2px;transition:width .5s}
+  .bar-row .cnt{width:26px;text-align:left;font-variant-numeric:tabular-nums;font-weight:600;font-size:13px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+  /* ---- Toolbar ---- */
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar input[type=search],.toolbar select{font-family:var(--sans);font-size:13px;padding:7px 10px;
+    border:1px solid #d9d9d2;border-radius:7px;background:#fff;color:var(--ink-on)}
+  .toolbar input[type=search]{min-width:200px;flex:1}
+  .toolbar select{cursor:pointer}
+  .toolbar .spacer{flex:1}
+  .chip-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  /* ---- Table ---- */
+  .tbl-scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+    font-weight:600;padding:9px 12px;border-bottom:2px solid #ecece6;white-space:nowrap;cursor:pointer;user-select:none}
+  thead th:hover{color:var(--ink-on)}
+  thead th .ar{opacity:.4;font-size:9px}
+  tbody tr{border-bottom:1px solid #efefe9}
+  tbody tr.main{cursor:pointer}
+  tbody tr.main:hover{background:#faf9f5}
+  td{padding:10px 12px;vertical-align:top}
+  td.cust{font-weight:600;white-space:nowrap}
+  .amt{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .disc{color:var(--muted);font-size:10px;display:inline-block;width:12px;transition:transform .15s}
+  tr.open .disc{transform:rotate(90deg)}
+  .row-del-cell{text-align:center}
+  .row-del{border:none;background:none;cursor:pointer;font-size:14px;line-height:1;padding:5px 7px;
+    border-radius:6px;opacity:.28;filter:grayscale(1);transition:.12s}
+  .row-del:hover{opacity:1;filter:none;background:#c0392b14}
+  tbody tr.main:hover .row-del{opacity:.6}
+  .row-del:focus-visible{outline:2px solid var(--red);outline-offset:1px;opacity:1;filter:none}
+
+  /* stage pill */
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;
+    white-space:nowrap;line-height:1.4}
+  .badge{display:inline-block;font-size:11px;color:var(--muted);background:#f0efe9;border:1px solid #e5e4dd;
+    border-radius:5px;padding:1px 7px}
+  .todo-flag{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:6px;
+    vertical-align:1px}
+
+  /* todo toggle button in list */
+  .todo-toggle{font-family:var(--sans);font-size:11.5px;font-weight:600;cursor:pointer;border-radius:20px;
+    padding:3px 11px;line-height:1.4;transition:.12s;border:1px solid transparent}
+  .todo-toggle.on{background:#c98a2b1f;color:#a06d1f;border-color:#c98a2b44}
+  .todo-toggle.on:hover{background:#c98a2b30}
+  .todo-toggle:not(.on){background:transparent;color:var(--muted);border-color:#dcdad2}
+  .todo-toggle:not(.on):hover{color:var(--amber);border-color:var(--amber)}
+  .todo-toggle:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+  /* quick-add memo row (in detail area) */
+  .memo-add{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .memo-add-date{font-family:var(--sans);font-size:12.5px;padding:6px 8px;border:1px solid #d9d9d2;
+    border-radius:6px;background:#fff;flex:none}
+  .memo-add-txt{font-family:var(--sans);font-size:13px;padding:7px 10px;border:1px solid #d9d9d2;
+    border-radius:6px;background:#fff;flex:1;min-width:160px}
+  .memo-add-txt:focus{outline:2px solid var(--red);outline-offset:0;border-color:var(--red)}
+  .memo-add-btn{flex:none;padding:7px 14px}
+
+  /* latest memo cell — single line, truncated */
+  .memo-cell{max-width:280px}
+  .memo{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#4a4d54}
+  .memo-dt{font-weight:600;font-variant-numeric:tabular-nums;color:var(--red-dim);margin-right:6px}
+
+  /* service tags in table */
+  .svc-cell{white-space:normal;min-width:120px}
+  .svc-tag{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;
+    line-height:1.5;margin:1px 3px 1px 0;white-space:nowrap}
+  /* service picker (toggle buttons in edit area) */
+  .svc-picker{display:flex;gap:8px;flex-wrap:wrap}
+  .svc-opt{font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;
+    border:1.5px solid #d9d9d2;background:#fff;color:#777;padding:6px 14px;border-radius:20px;transition:.12s}
+  .svc-opt:hover{border-color:var(--sc);color:var(--sc)}
+  .svc-opt.on{background:var(--sc);border-color:var(--sc);color:#fff}
+  .svc-opt:focus-visible{outline:2px solid var(--sc);outline-offset:2px}
+
+  /* detail row */
+  tr.detail td{background:#faf9f5;padding:0}
+  .detail-in{padding:14px 20px 18px;display:grid;grid-template-columns:1.4fr 1fr;gap:26px}
+  .detail-in h4{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+    margin:0 0 8px;font-weight:600}
+  .timeline{list-style:none;margin:0;padding:0;border-left:2px solid #e3e1d8}
+  .timeline li{position:relative;padding:0 0 11px 16px;font-size:12.5px;line-height:1.45}
+  .timeline li::before{content:"";position:absolute;left:-5px;top:5px;width:8px;height:8px;border-radius:50%;
+    background:var(--red);border:2px solid #faf9f5}
+  .timeline .dt{font-weight:600;font-variant-numeric:tabular-nums;color:var(--red-dim);margin-right:6px}
+  .note-box{white-space:pre-wrap;font-size:12.5px;line-height:1.5;color:#3a3d44}
+  .edit-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;grid-column:1/-1;
+    border-top:1px dashed #e0ded5;padding-top:13px;align-items:center}
+  .edit-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .edit-row select,.edit-row input,.edit-row textarea{font-family:var(--sans);font-size:12.5px;
+    border:1px solid #d9d9d2;border-radius:6px;padding:5px 8px;background:#fff}
+  .edit-row textarea{width:100%;min-height:56px;resize:vertical}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld.grow{flex:1;min-width:180px;grid-column:1/-1}
+  .del-link{color:var(--red);font-size:12px;cursor:pointer;background:none;border:none;margin-left:auto}
+  .del-link:hover{text-decoration:underline}
+
+  .empty{color:var(--muted);font-style:italic}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;margin-top:20px;line-height:1.6}
+  .saved-flash{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;
+    pointer-events:none;transition:.25s;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:50}
+  .saved-flash.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ---- View tabs ---- */
+  .tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid #e3e1d8}
+  .tab{font-family:var(--sans);font-size:13.5px;font-weight:600;color:var(--muted);background:none;
+    border:none;padding:10px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--ink-on)}
+  .tab.active{color:var(--red);border-bottom-color:var(--red)}
+  .tab:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:4px}
+  .view{display:none}
+  .view.active{display:block}
+
+  /* ---- Gantt ---- */
+  .g-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .g-toolbar .hint{font-size:12px;color:var(--muted)}
+  .gantt-scroll{overflow-x:auto;border:1px solid #e7e7e2;border-radius:var(--r);background:var(--card);
+    box-shadow:var(--shadow)}
+  .gantt{position:relative;min-width:1040px}
+  .g-months{display:flex;position:sticky;top:0;z-index:5;background:#fbfbf8;border-bottom:1px solid #e3e1d8}
+  .g-lane-label-col{width:250px;flex:none;border-right:1px solid #e3e1d8;display:flex;align-items:center}
+  .g-lane-label-col span{font-size:11px;font-weight:600;letter-spacing:.4px;color:var(--muted);
+    text-transform:uppercase;padding:10px 14px}
+  .g-lane-label-col span:first-child{width:110px;flex:none}
+  .g-month{flex:1;text-align:center;font-size:13px;font-weight:600;letter-spacing:.4px;color:var(--muted);
+    padding:10px 0;border-right:1px solid #efeee7;text-transform:uppercase}
+  .g-month:last-child{border-right:none}
+  .g-body{position:relative}
+  /* month vertical gridlines drawn as background on the track area */
+  .g-lane{display:flex;border-bottom:1px solid #f0efe8}
+  .g-lane:last-child{border-bottom:none}
+  .g-lane-head{width:110px;flex:none;border-right:1px solid #e3e1d8;padding:10px 14px;
+    display:flex;flex-direction:column;justify-content:center;gap:3px;background:#fbfbf8;position:sticky;left:0;z-index:3}
+  .g-lane-head .nm{font-weight:600;font-size:15px}
+  .g-lane-head .ld{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .g-track{flex:1;position:relative;padding:8px 0;min-height:44px}
+  .g-caserow{display:flex;align-items:center;height:30px;margin:10px 0 4px;cursor:pointer}
+  .g-caserow:hover .g-caselbl{color:var(--red-dim)}
+  .g-caserow:hover .g-rowline{background:#faf9f5}
+  .g-caselbl{width:140px;flex:none;font-size:14.5px;font-weight:600;color:#2a2c32;padding-right:14px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;
+    border-right:1px solid #eeece5;display:flex;align-items:center;justify-content:flex-end;gap:5px}
+  .svc-mini-wrap{display:inline-flex;gap:3px;flex:none}
+  .svc-mini{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;
+    border-radius:4px;color:#fff;font-size:11px;font-weight:700;line-height:1;flex:none}
+  .g-rowline{position:relative;height:30px;flex:1;border-radius:4px}
+  .g-bar{position:absolute;height:24px;top:1px;border-radius:5px;color:#fff;font-size:11.5px;font-weight:600;
+    display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden;cursor:pointer;
+    box-shadow:0 1px 3px rgba(0,0,0,.18);transition:filter .12s}
+  .g-bar:hover{filter:brightness(1.08)}
+  .g-bar .amt-tag{opacity:.8;font-weight:400;margin-left:6px}
+  /* phased segments */
+  .g-seg{position:absolute;height:26px;top:2px;border-radius:4px;font-size:12.5px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;
+    padding:0 7px;box-shadow:0 1px 2px rgba(0,0,0,.15);gap:5px}
+  .g-seg .seg-meta{font-weight:400;opacity:.9;font-variant-numeric:tabular-nums;font-size:11.5px}
+  /* 緊湊段給固定最小寬度,短天數也看得清;浮標貼左上角 */
+  .g-seg.narrow{overflow:visible;min-width:46px}
+  .g-seg .seg-days{position:absolute;top:-15px;left:0;font-size:10.5px;
+    font-weight:600;color:#555;background:#fff;padding:0 4px;border-radius:3px;white-space:nowrap;
+    box-shadow:0 1px 2px rgba(0,0,0,.12);font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .g-seg.st-todo .seg-meta{opacity:.75}
+  .g-seg{outline:1.5px solid #fff}/* 相鄰/重疊段之間有白邊分隔 */
+  .g-seg.st-done{background:var(--pc);color:#fff}
+  .g-seg.st-active{background:var(--pc);color:#fff;
+    background-image:linear-gradient(45deg,rgba(255,255,255,.28) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.28) 75%,transparent 75%);
+    background-size:14px 14px;animation:stripe 1s linear infinite;box-shadow:0 0 0 2px color-mix(in srgb,var(--pc) 40%,#fff),0 1px 3px rgba(0,0,0,.2)}
+  .g-seg.st-todo{background:transparent;color:var(--pc);border:1.5px dashed var(--pc);
+    box-shadow:none;opacity:.85}
+  @keyframes stripe{to{background-position:14px 0}}
+  @media(prefers-reduced-motion:reduce){.g-seg.st-active{animation:none}}
+  .g-today{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:4;pointer-events:none}
+  .g-today::after{content:"今天";position:absolute;top:-2px;left:3px;font-size:10.5px;color:var(--red);
+    font-weight:700;background:#fff;padding:0 3px;border-radius:3px}
+  .g-gridlines{position:absolute;top:0;bottom:0;left:250px;right:0;display:flex;pointer-events:none;z-index:0}
+  .g-gridcell{flex:1;border-right:1px dashed #efeee7}
+  .g-gridcell:last-child{border-right:none}
+  .g-unscheduled{margin-top:18px}
+  .g-unscheduled h3{font-family:var(--serif);font-size:14px;margin:0 0 10px;font-weight:600}
+  .g-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .g-chip{border:1px dashed #d2d0c8;background:#fbfbf8;border-radius:20px;padding:5px 12px;font-size:12.5px;
+    cursor:pointer;display:flex;align-items:center;gap:7px}
+  .g-chip:hover{border-color:var(--red);color:var(--red-dim)}
+  .g-chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  /* date editor popover */
+  .g-editor{position:fixed;inset:0;background:rgba(22,24,29,.45);display:none;align-items:center;
+    justify-content:center;z-index:60}
+  .g-editor.show{display:flex}
+  .g-panel{background:#fff;border-radius:12px;padding:22px 24px;width:340px;max-width:calc(100vw - 40px);
+    box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .g-panel h3{font-family:var(--serif);margin:0 0 4px;font-size:17px}
+  .g-panel .who{font-size:12px;color:var(--muted);margin-bottom:16px}
+  .g-panel .frow{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
+  .g-panel label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+  .g-panel input,.g-panel select{font-family:var(--sans);font-size:13.5px;padding:8px 10px;
+    border:1px solid #d9d9d2;border-radius:7px}
+  .g-panel .btns{display:flex;gap:8px;margin-top:6px}
+  .g-panel .btns .btn{flex:1;justify-content:center;text-align:center}
+  .btn.dark{background:var(--red);border-color:var(--red-dim);color:#fff}
+  .btn.dark:hover{background:var(--red-dim)}
+  .btn.light{background:#f0efe9;border-color:#e0ded5;color:#444}
+  .btn.light:hover{background:#e7e5dd}
+  .g-panel .clearlink{background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;
+    margin-top:10px;padding:0}
+  .g-panel .clearlink:hover{color:var(--red);text-decoration:underline}
+  .g-panel.wide{width:590px}
+
+  /* legend */
+  .g-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:12px;color:#555;margin-bottom:12px}
+  .g-legend span{display:inline-flex;align-items:center;gap:5px}
+  .g-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .g-legend .sep{width:1px;height:15px;background:#d8d6ce;margin:0 2px}
+  .g-legend i.lg-done{background:#5f6b7d}
+  .g-legend i.lg-active{background:#5f6b7d;background-image:linear-gradient(45deg,rgba(255,255,255,.5) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.5) 50%,rgba(255,255,255,.5) 75%,transparent 75%);background-size:8px 8px}
+  .g-legend i.lg-todo{background:transparent;border:1.5px dashed #8791a1}
+
+  /* phase editor table */
+  .ph-table{margin:4px 0 6px}
+  .ph-head,.ph-row{display:grid;grid-template-columns:78px 1fr 12px 1fr 72px 62px;gap:7px;align-items:center}
+  .ph-name{white-space:nowrap}
+  .ph-head{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+    font-weight:600;padding:0 2px 6px}
+  .ph-row{margin-bottom:8px}
+  .ph-days-wrap{display:flex;align-items:center;gap:3px}
+  .ph-days-in{width:38px;font-family:var(--sans);font-size:12.5px;padding:6px 4px;text-align:center;
+    border:1px solid #d9d9d2;border-radius:6px;font-variant-numeric:tabular-nums;
+    -moz-appearance:textfield;background:#fff}
+  .ph-days-in::-webkit-outer-spin-button,.ph-days-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .ph-days-unit{font-size:11.5px;color:var(--muted)}
+  .ph-total{margin-top:10px;padding-top:10px;border-top:1px dashed #e0ded5;font-size:13px;color:#444;
+    text-align:right;font-variant-numeric:tabular-nums}
+  .ph-total b{color:var(--red-dim)}
+  .ph-name{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+  .ph-name i{width:10px;height:10px;border-radius:2px;flex:none}
+  .ph-dash{text-align:center;color:var(--muted)}
+  .ph-row input[type=date],.ph-row select{font-family:var(--sans);font-size:12.5px;padding:6px 7px;
+    border:1px solid #d9d9d2;border-radius:6px;width:100%;background:#fff;min-width:0}
+
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .mid{grid-template-columns:1fr}
+    .funnel{flex-wrap:wrap}.fstep{flex:1 1 30%}
+    .detail-in{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ---- login gate ---- */
+  #gate{position:fixed;inset:0;background:var(--ink);color:#eceef2;z-index:200;
+    display:flex;align-items:center;justify-content:center;padding:24px}
+  #gate .card{max-width:420px;width:100%;text-align:center}
+  #gate .mark{width:52px;height:52px;border-radius:11px;margin:0 auto 20px}
+  #gate .mark::before,#gate .mark::after{width:23px;top:25px;left:14.5px}
+  #gate h1{font-family:var(--serif);font-size:26px;margin:0 0 6px}
+  #gate .sub{color:#9aa1ad;font-size:13px;letter-spacing:.4px;margin-bottom:28px}
+  #gate .g-btn-wrap{display:flex;justify-content:center;min-height:44px}
+  #gate .msg{margin-top:20px;font-size:13px;color:#e0a0a0;min-height:18px;line-height:1.5}
+  #gate .hint{margin-top:14px;font-size:12px;color:#7a808b;line-height:1.6}
+  #gate.loading .g-btn-wrap,#gate.loading .msg{opacity:.5}
+  body.authed #gate{display:none}
+  body:not(.authed) .wrap,body:not(.authed) header.top{display:none}
+  /* signed-in chip in masthead */
+  .me{display:flex;align-items:center;gap:9px;font-size:12.5px;color:#cfd4dc}
+  .me img{width:26px;height:26px;border-radius:50%;flex:none}
+  .me .logout{background:transparent;border:1px solid var(--line);color:#cfd4dc;
+    font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer}
+  .me .logout:hover{background:#2a2e37}
+  /* sync status */
+  .sync{font-size:11.5px;color:#9aa1ad;display:inline-flex;align-items:center;gap:6px}
+  .sync .dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex:none}
+  .sync.saving .dot{background:var(--amber)}
+  .sync.err .dot{background:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- ===== 登入閘門 ===== -->
+<div id="gate" class="loading">
+  <div class="card">
+    <div class="mark" aria-hidden="true"></div>
+    <h1>紅隊服務專案追蹤</h1>
+    <div class="sub">RED TEAM SERVICE · PIPELINE TRACKER</div>
+    <div class="g-btn-wrap" id="gBtn"></div>
+    <div class="msg" id="gateMsg"></div>
+    <div class="hint" id="gateHint">請用授權的 Google 帳號登入</div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"></div>
+      <div>
+        <h1>紅隊服務專案追蹤</h1>
+        <div class="sub">RED TEAM SERVICE · PIPELINE TRACKER</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="sync" id="sync"><span class="dot"></span><span id="syncTxt">已同步</span></span>
+      <button class="btn primary" id="addBtn">＋ 新增客戶</button>
+      <button class="btn" id="expCsv">匯出 CSV</button>
+      <button class="btn" id="expJson">匯出 JSON</button>
+      <span class="me" id="me"></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-view="dash" role="tab">儀表板</button>
+    <button class="tab" data-view="gantt" role="tab">甘特圖 · 量能</button>
+  </div>
+
+  <!-- ============ DASHBOARD VIEW ============ -->
+  <div class="view active" id="view-dash">
+  <div class="kpis" id="kpis"></div>
+
+  <section class="block">
+    <div class="block-hd">
+      <h2>銷售漏斗</h2>
+      <span class="note">依專案階段 · 由左至右推進</span>
+    </div>
+    <div class="block-body"><div class="funnel" id="funnel"></div></div>
+  </section>
+
+  <div class="mid">
+    <section class="block">
+      <div class="block-hd"><h2>業務負責人</h2><span class="note">案件數</span></div>
+      <div class="block-body" id="bySales"></div>
+    </section>
+    <section class="block">
+      <div class="block-hd"><h2>階段分佈</h2><span class="note">含金額與待辦</span></div>
+      <div class="block-body" id="byStageDetail"></div>
+    </section>
+  </div>
+
+  <section class="block">
+    <div class="block-hd"><h2>客戶清單</h2><span class="note">點列展開進度時間軸 · 可直接編輯</span></div>
+    <div class="block-body">
+      <div class="toolbar">
+        <input type="search" id="q" placeholder="搜尋客戶 / 業務 / 內容…" aria-label="搜尋">
+        <select id="fStage"><option value="">全部階段</option></select>
+        <select id="fSales"><option value="">全部業務</option></select>
+        <select id="fSvc"><option value="">全部品項</option></select>
+        <select id="fSort">
+          <option value="priority">排序：重點優先 (有品項 · 階段靠後)</option>
+          <option value="stage">排序：階段</option>
+          <option value="customer">排序：客戶</option>
+          <option value="sales">排序：業務</option>
+          <option value="todo">排序：有待辦優先</option>
+        </select>
+        <span class="spacer"></span>
+        <span class="chip-count" id="cnt"></span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr>
+            <th style="width:26px"></th>
+            <th data-k="customer">客戶 <span class="ar">▾</span></th>
+            <th data-k="industry">產業</th>
+            <th data-k="sales">業務</th>
+            <th>品項</th>
+            <th data-k="stage">階段</th>
+            <th data-k="amount">預估金額</th>
+            <th>最新 memo</th>
+            <th>待辦</th>
+            <th style="width:40px"></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  </div><!-- /view-dash -->
+
+  <!-- ============ GANTT VIEW ============ -->
+  <div class="view" id="view-gantt">
+    <div class="g-toolbar">
+      <span class="hint">每位業務一條泳道 · 點長條或右側「待排期」案子可設定 2026 起訖日 · <b style="color:var(--red)">紅線＝今天</b></span>
+      <span class="spacer" style="flex:1"></span>
+      <select id="gYear" title="檢視年度"><option value="2026">2026 全年</option></select>
+    </div>
+    <div class="g-legend" id="gLegend"></div>
+    <div class="gantt-scroll">
+      <div class="gantt" id="gantt"></div>
+    </div>
+    <div class="g-unscheduled" id="gUnsched"></div>
+  </div>
+
+  <!-- phase editor -->
+  <div class="g-editor" id="gEditor">
+    <div class="g-panel wide">
+      <h3 id="geName">—</h3>
+      <div class="who" id="geWho"></div>
+      <div class="ph-table" id="gePhases"></div>
+      <div class="btns">
+        <button class="btn light" id="geCancel">取消</button>
+        <button class="btn dark" id="geSave">儲存排期</button>
+      </div>
+      <button class="clearlink" id="geClear">清除全部階段(移回待排期)</button>
+    </div>
+  </div>
+
+  <footer>
+    資料存於團隊共用的 Google Sheet · 編輯後自動同步,所有授權成員即時共用<br>
+    需以授權的 Google 帳號登入 · 右上角可隨時匯出 CSV / JSON 備份
+  </footer>
+</div>
+
+<div class="saved-flash" id="flash">已儲存</div>
+
+<script>
+/* ---------- project phases (甘特分段) ---------- */
+const PHASES = [
+  {key:"介紹", full:"介紹",  color:"#5f6b7d"},
+  {key:"簽約", full:"簽約",  color:"#3a6ea5"},
+  {key:"KO",   full:"Kick off", color:"#2f8f8f"},
+  {key:"執行", full:"執行",  color:"#c0392b"},
+  {key:"報告", full:"報告",  color:"#c98a2b"},
+  {key:"複測", full:"複測",  color:"#7d5ba6"},
+  {key:"結案", full:"結案",  color:"#2f9e63"},
+];
+function blankPhases(){ return PHASES.map(p=>({key:p.key,start:"",end:"",status:"todo"})); }
+// status: done | active | todo
+
+/* ---------- service lines (服務品項, 可多選) ---------- */
+const SERVICES = [
+  {key:"紅隊演練", color:"#c0392b"},
+  {key:"滲透測試", color:"#3a6ea5"},
+  {key:"紫隊演練", color:"#7d5ba6"},
+];
+const SERVICE_COLOR = Object.fromEntries(SERVICES.map(s=>[s.key,s.color]));
+/* normalize saved services into a clean array of valid keys */
+function normServices(saved){
+  if(!Array.isArray(saved)) return [];
+  const valid=new Set(SERVICES.map(s=>s.key));
+  return [...new Set(saved.filter(k=>valid.has(k)))];
+}
+
+/* ---------- canonical pipeline ---------- */
+const STAGES = [
+  {key:"未接觸",  color:"#8791a1"},
+  {key:"服務介紹", color:"#5f6b7d"},
+  {key:"初步需求了解", color:"#3a6ea5"},
+  {key:"報價",    color:"#b07b1f"},
+  {key:"SOW/法務", color:"#c98a2b"},
+  {key:"得標",    color:"#2f9e63"},
+  {key:"演練中",  color:"#c0392b"},
+];
+const STAGE_COLOR = Object.fromEntries(STAGES.map(s=>[s.key,s.color]));
+
+/* map raw excel stage text -> canonical stage */
+function normStage(raw){
+  if(!raw) return "未接觸";
+  const s = String(raw);
+  if(/演練/.test(s)) return "演練中";
+  if(/得標/.test(s)) return "得標";
+  if(/SOW|法務|定稿/.test(s)) return "SOW/法務";
+  if(/報價/.test(s)) return "報價";
+  if(/需求/.test(s)) return "初步需求了解";
+  if(/服務介紹|介紹/.test(s)) return "服務介紹";
+  return "未接觸";
+}
+
+/* ---------- seed data (from xlsx) ---------- */
+const SEED = [{"customer":"台新銀行","industry":"Financials","sales":"Alan","si":"AEB","stage":"得標","amount":null,"progress":"演練時程：07/20 - 08/19 (30 days)\n\n03/10 - 紅隊服務介紹\n05/29 - 由 SI 協助提供事前調查表給客戶\n06/03 - 客戶交付事前調查表\n06/05 - 預計提供合約與 SOW 給 AEB 轉交給客戶\n06/08 - SOW 初稿線上會議\n06/15 - 提供法務審閱後之紅隊演練服務授權書\n06/23 - 再次提供法務審閱後之紅隊演練服務授權書 (交由 AEB 轉交給客戶)\n06/29 - Kick off meeting\n07/20 - 開始紅隊演練 (7/1 可進行被動的資訊收集)","todo":null},
+{"customer":"工研院","industry":null,"sales":"Carol","si":"N/A","stage":"6/16 演練","amount":"N/A","progress":"03/19 - 紅隊服務介紹\n04/29 - 紅隊演練需求討論\n04/30 - 工研院提供紅隊演練事前調查問卷填寫結果\n05/07 - 提供 SOW （預計 5/20 開始演練）\n05/12 - 召開會議討論 SOW 內容\n05/13 - 提供最後版本 SOW\n05/18 - 工研院對於 SoW 內容有疑問 已回應新版本 沒問題會更新至 SoW 等 Kick off 時間\n05/20 - 交付 SOW V4\n06/01 - NDA 簽核中，等約 Kick off Meeting\n06/02 - 收到公司法務簽核完成與送印後的 NDA (後續確認這個是重工)\n06/04 - 工研院寄送他們送印後 NDA (將於 06/05 收到紙本)\n06/08 - 跑趨勢科技內部 NDA review 流程\n06/10 - 提供 NDA 掃描檔 & 寄送 NDA 紙本給 Lily\n06/11 - Mick 提供演練說明文件，交付給工研院紫隊\n06/16 - 開始紅隊演練","todo":"約 Kick off 時間 -> 調整成 NDA 交付後就可以進行演練"},
+{"customer":"矽品","industry":"High-tech","sales":"Ivan","si":null,"stage":"SOW 內容定稿\n法務 review","amount":null,"progress":"專案時程：10 月要交付報告\n\n03/27 - 紅隊會前會 （矽品）\n03/30 - 紅隊服務介紹 （矽品）\n04/24 - 收集「日月光中壢廠」、「矽品」、「環電」三家公司資訊，提供初步報價 （日月光投控）\n\nMick: Red Team 實際進場所需的執行時間，建議專案時程至少抓 3-4 月\n方案 1：外網 2 週 + 內網 3 週 = 總計 5 週執行時間（最低必要需求）\n方案 2：外網 3 週（含 phishing）+ 內網 3 週 = 總計 6 週執行時間\nNote：1 週 = 5 個工作天\n\n05/06 - 確認環電不執行，提供問卷給客戶填寫，等待回覆\n05/11 - 已提供工作規劃書初步版本給業務\n05/18 - 等日月光NDA回簽，趨勢已提供與回簽\n06/01 - 法務重新 review NDA & SOW\n07/07 - 矽品 SOW 討論會議 /已經提供SoW和文件給矽品了 等回應時間","todo":"1. 等NDA\n2. SOW"},
+{"customer":"辛耘","industry":null,"sales":"Dieu","si":null,"stage":"得標","amount":null,"progress":"專案時程：預計六月執行紅隊演練，十月前要結束專案，因為要遷移機房。\n\n04/27 - 紅隊服務介紹\n05/12 - 和客戶詢問初步盤點表的狀況\n06/04 - 提供初版合約與 SOW 給 Dieu 轉交\n07/13 - 等待業務和我們說kick off 時間 /客戶是希望8/1開始啦...","todo":null},
+{"customer":"飛航","industry":null,"sales":"Carol","si":null,"stage":null,"amount":null,"progress":"希望可以拖到 Q4","todo":null},
+{"customer":"可樂","industry":null,"sales":"Dieu","si":null,"stage":"服務介紹","amount":null,"progress":"06/26 - Dieu 表示客戶最近有針對消費者的 AI 服務即將上線 (規劃旅遊使用)，有 AI 滲透測試需求","todo":"Josh"},
+{"customer":"全聯","industry":null,"sales":"Dieu","si":null,"stage":null,"amount":null,"progress":null,"todo":"Josh"},
+{"customer":"廣達","industry":null,"sales":"Alan","si":null,"stage":"服務介紹","amount":null,"progress":"已經先提供簡報，尚未安排介紹會議","todo":null},
+{"customer":"信邦","industry":null,"sales":"Dieu","si":null,"stage":null,"amount":null,"progress":null,"todo":null},
+{"customer":"台灣世曦","industry":null,"sales":"Alan","si":null,"stage":"報價","amount":null,"progress":"06/12 - 客戶已經排定預算要執行 PT，由 Mick 介紹 Red teaming/PT\n06/16 - 客戶提供兩個 FQDN，Mick 初估 10 人天，Alan 初步報價 NT$40W (但還需要過 SI)\n07/07 - 客戶更新滲透測試目標清單，需要重新評估人天","todo":"台灣世曦，成立新的 AI 部門\n\n5/18 資訊部才知道有兩個 AI 系統（Ai 工程文件管理平台（檔案上傳後，交由 Gemini 處理與吐回）、視覺化創意設計平台（設計發想、產圖，可保留提示詞，讓其他人套用）），初步看這個網站 Web 網站，感覺沒有遵照開發流程，平台放在 appspot.com 雲上（資料都放在雲上），\n\n預估 4, 5 個 URL\n\n6/24, 預計 7 月執行"},
+{"customer":"英業達","industry":null,"sales":"Alan","si":null,"stage":"服務介紹","amount":null,"progress":"06/09 - 原定計劃為到場介紹 Red Teaming。新的資安長上任 (空降)，屬意找 Devcore，因此改成由 SE Justin 專注講解產品。","todo":null},
+{"customer":"達方電子","industry":null,"sales":"Alan","si":"精誠","stage":"服務介紹","amount":null,"progress":"06/10 - 在 MDR 監控月會上進行紅隊服務介紹","todo":null},
+{"customer":"信義房屋","industry":null,"sales":"Alan","si":null,"stage":"服務介紹","amount":null,"progress":"06/15 - 到場介紹 (取消)","todo":"改時間，等 Alan 通知"},
+{"customer":"台達電子","industry":null,"sales":"Alan","si":null,"stage":"服務介紹","amount":null,"progress":"06/16 - 線上介紹 (取消)","todo":"初步詢問台達電目前的 PT / Red team，有配合廠商，暫時取消介紹。由 Alan 後續進一步跟客戶接洽"},
+{"customer":"國泰人壽","industry":null,"sales":"Fion Lee","si":null,"stage":"初步需求了解","amount":null,"progress":"06/10 - 初步了解客戶對於 AI/ML/LLM 的安全性檢測需求","todo":"客戶需求：\n1. 目前內部有許多 AI 機器學習的使用環境（情境一），少量的 LLM（情境二） + Agentic AI (情境三，1 project) 的使用環境 (應用情境包含：包含文件搜尋與取得、圖片辨識、模型預訓練)\n- 甲方需求：需要先提供與說明 Red Team 廠商能進行的檢測方法論與檢測項目數量（接受：滲透測試搭配用訪談的結果評估風險，但不要 AI 治理面向的評估，專注於 cyber risk）\n- 預計標的數量（可能）：情境一（2）、情境二（3）、情境三（1）\n2. 情境四的測試對應到表 2 與表 4 (Website、App、API、Container 等各種實際的上線應用)，說明能對應這些環境的的檢測方法論（與檢測項目）。\n3. 預計執行 12 個月，需要檢測人員駐點、訪談討論、檢測\n \nNEXT:\n提供初步計價方式與報價（客戶需要單價費用才能估算可能的總價），得標後才會提供專案實際目標資訊（客戶會根據我們提供的方法論與檢測項目，以及費用來挑選標的）。\n客戶預計 7 月起案，6/17 能否提供 SOW & 報價？\n \nP.S. 客戶表示：如果人工費用較高，可以放到情境四計價"},
+{"customer":"國泰金控","industry":null,"sales":"Fion Lee","si":null,"stage":"初步需求了解","amount":null,"progress":"07/22 - 內部討論，確認對方需求","todo":null},
+{"customer":"光寶","industry":null,"sales":"Alan","si":null,"stage":"服務介紹","amount":null,"progress":"06/22 - 趨勢科技紅隊演練及AI安全說明 (取消。客戶出差，另約時間)","todo":null}];
+
+// 一次性客戶改名
+const RENAME={ "日月光投控":"矽品" };
+
+/* ---------- state (雲端版) ---------- */
+let data = [];                 // 開頁先空,登入成功後從 Apps Script 抓
+let CURRENT_EMAIL = "";        // 登入者 email,寫回時附帶供後端白名單檢查
+const CFG = window.APP_CONFIG || {};
+
+/* 從 Apps Script 讀全部資料 */
+async function cloudLoad(){
+  const url = CFG.API_URL + (CFG.API_URL.includes("?")?"&":"?") + "email=" + encodeURIComponent(CURRENT_EMAIL);
+  const res = await fetch(url, {method:"GET"});
+  const j = await res.json();
+  if(!j.ok) throw new Error(j.error || "讀取失敗");
+  data = migrate(Array.isArray(j.data)?j.data:[]);
+}
+
+/* 寫回 Apps Script(整批覆寫)。前端不需 no-cors,Apps Script 會回 JSON */
+let saveT, savingInFlight=false, savePending=false;
+async function cloudSave(){
+  if(savingInFlight){ savePending=true; return; }
+  savingInFlight=true; setSync("saving");
+  try{
+    const payload = { email: CURRENT_EMAIL, data: data.map(({id,...r})=>({id,...r})) };
+    const res = await fetch(CFG.API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"}, // 避免 CORS preflight
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json();
+    if(!j.ok) throw new Error(j.error || "儲存失敗");
+    setSync("ok");
+  }catch(e){
+    console.error(e); setSync("err", e.message);
+  }finally{
+    savingInFlight=false;
+    if(savePending){ savePending=false; cloudSave(); }
+  }
+}
+/* 對外沿用舊名 save():防抖後寫雲端 */
+function save(){ flash(); clearTimeout(saveT); saveT=setTimeout(cloudSave, 600); }
+
+function setSync(state, msg){
+  const el=$("#sync"), txt=$("#syncTxt"); if(!el) return;
+  el.classList.remove("saving","err");
+  if(state==="saving"){ el.classList.add("saving"); txt.textContent="儲存中…"; }
+  else if(state==="err"){ el.classList.add("err"); txt.textContent="儲存失敗"; el.title=msg||""; }
+  else { txt.textContent="已同步"; el.title=""; }
+}
+
+function migrate(arr){
+  return arr.map((r,i)=>({
+    id: r.id ?? ("c"+i+"_"+(r.customer||"").length),
+    customer:(RENAME[r.customer]||r.customer)||"", industry:r.industry||"", sales:r.sales||"",
+    si:r.si||"", stage:normStage(r.stage), amount:r.amount||"",
+    services: normServices(r.services),  // 服務品項,可多選
+    progress:r.progress||"", todo:r.todo||"",
+    phases: normPhases(r.phases)   // 六階段排期,每段 {key,start,end,status}
+  }));
+}
+function normPhases(saved){
+  const base=blankPhases();
+  if(Array.isArray(saved)){
+    saved.forEach(sp=>{ const t=base.find(b=>b.key===sp.key);
+      if(t){ t.start=sp.start||""; t.end=sp.end||""; t.status=sp.status||"todo"; } });
+  }
+  return base;
+}
+let flashT;
+function flash(msg){
+  const el=document.getElementById("flash"); el.textContent=msg||"已儲存";
+  el.classList.add("show"); clearTimeout(flashT);
+  flashT=setTimeout(()=>el.classList.remove("show"),1400);
+}
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function isMoney(a){ return a && a!=="N/A" && /\d/.test(a); }
+
+/* parse "MM/DD - text" lines out of progress */
+function parseTimeline(txt){
+  if(!txt) return {events:[],notes:[]};
+  const lines = txt.split("\n"); const events=[], notes=[];
+  for(const ln of lines){
+    const m = ln.match(/^\s*(\d{1,2}\/\d{1,2})\s*[-–]\s*(.+)$/);
+    if(m) events.push({dt:m[1], txt:m[2].trim()});
+    else if(ln.trim()) notes.push(ln.trim());
+  }
+  return {events,notes};
+}
+
+/* ---------- rendering ---------- */
+let sortK="priority", sortDir=1, openId=null;
+
+function stagePill(st){
+  const c=STAGE_COLOR[st]||"#8791a1";
+  return `<span class="pill" style="background:${c}1f;color:${c};box-shadow:inset 0 0 0 1px ${c}44">${esc(st)}</span>`;
+}
+
+/* 今天(用甘特圖同一個 TODAY 基準) YYYY-MM-DD,給 date input 當預設 */
+function todayISO(){
+  const d=new Date(TODAY_UTC);
+  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,"0"), day=String(d.getUTCDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+/* 把一筆 {日期, 內容} 追加到 progress 文字尾端,成為新的時間軸事件 */
+function appendMemo(rec, isoDate, text){
+  text=(text||"").trim(); if(!text) return false;
+  const m=(isoDate||"").match(/^\d{4}-(\d{2})-(\d{2})/);
+  const md = m ? `${+m[1]}/${+m[2]}` : todayISO().slice(5).replace("-","/").replace(/^0/,"");
+  const line=`${md} - ${text}`;
+  rec.progress = rec.progress && rec.progress.trim()
+    ? rec.progress.replace(/\s*$/,"") + "\n" + line
+    : line;
+  return true;
+}
+
+/* 取進度時間軸最後一筆(最新)事件,做為清單上的「最新 memo」 */
+function latestMemo(progress){
+  const {events}=parseTimeline(progress);
+  if(!events.length) return null;
+  const e=events[events.length-1];
+  return {dt:e.dt, txt:e.txt, full:`${e.dt} - ${e.txt}`};
+}
+
+/* 甘特圖客戶名旁的迷你品項標籤 */
+function serviceTagsMini(list){
+  const arr=normServices(list);
+  if(!arr.length) return "";
+  return `<span class="svc-mini-wrap">`+arr.map(k=>{
+    const c=SERVICE_COLOR[k]||"#8791a1";
+    return `<span class="svc-mini" style="background:${c}" title="${esc(k)}">${esc(k[0])}</span>`;
+  }).join("")+`</span>`;
+}
+
+/* 服務品項標籤(表格內用小圓標,可多個) */
+function serviceTags(list){
+  const arr=normServices(list);
+  if(!arr.length) return '<span class="empty">—</span>';
+  return arr.map(k=>{
+    const c=SERVICE_COLOR[k]||"#8791a1";
+    return `<span class="svc-tag" style="background:${c}1a;color:${c};box-shadow:inset 0 0 0 1px ${c}55">${esc(k)}</span>`;
+  }).join("");
+}
+
+function renderKpis(){
+  const total=data.length;
+  const active=data.filter(r=>!["未接觸","服務介紹"].includes(r.stage)).length;
+  const won=data.filter(r=>["得標","演練中"].includes(r.stage)).length;
+  const running=data.filter(r=>r.stage==="演練中").length;
+  const todos=data.filter(r=>r.todo&&r.todo.trim()).length;
+  const k=[
+    {lab:"追蹤客戶",val:total,cls:""},
+    {lab:"進行中案件",val:active,sub:"報價後",cls:""},
+    {lab:"已得標",val:won,cls:"win"},
+    {lab:"演練中",val:running,cls:"accent"},
+    {lab:"待辦項目",val:todos,cls:""},
+  ];
+  $("#kpis").innerHTML = k.map(x=>`<div class="kpi ${x.cls}">
+    <div class="lab">${x.lab}</div>
+    <div class="val">${x.val}${x.sub?`<small>${x.sub}</small>`:""}</div></div>`).join("");
+}
+
+function renderFunnel(){
+  const counts=Object.fromEntries(STAGES.map(s=>[s.key,0]));
+  data.forEach(r=>counts[r.stage]++);
+  $("#funnel").innerHTML = STAGES.map((s,i)=>`
+    <div class="fstep" style="background:${s.color}" title="${esc(s.key)}：${counts[s.key]} 家">
+      <span class="idx">${i+1}</span>
+      <span class="n">${counts[s.key]}</span>
+      <span class="t">${esc(s.key)}</span>
+    </div>`).join("");
+}
+
+function renderBars(el, map, colorFn){
+  const entries=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  el.innerHTML = entries.map(([name,c])=>`
+    <div class="bar-row">
+      <span class="name">${esc(name)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${c/max*100}%;background:${colorFn(name)}"></span></span>
+      <span class="cnt">${c}</span>
+    </div>`).join("");
+}
+
+function renderBySales(){
+  const m={}; data.forEach(r=>{const s=r.sales||"未指定"; m[s]=(m[s]||0)+1;});
+  renderBars($("#bySales"), m, ()=>"#5f6b7d");
+}
+function renderByStage(){
+  const m={}; STAGES.forEach(s=>m[s.key]=0); data.forEach(r=>m[r.stage]++);
+  const clean=Object.fromEntries(Object.entries(m).filter(([,v])=>v>0));
+  renderBars($("#byStageDetail"), clean, n=>STAGE_COLOR[n]||"#888");
+}
+
+function fillFilters(){
+  const stSel=$("#fStage"), slSel=$("#fSales"), svSel=$("#fSvc");
+  const curSt=stSel.value, curSl=slSel.value, curSv=svSel.value;
+  stSel.innerHTML='<option value="">全部階段</option>'+STAGES.map(s=>`<option>${s.key}</option>`).join("");
+  const sales=[...new Set(data.map(r=>r.sales).filter(Boolean))].sort();
+  slSel.innerHTML='<option value="">全部業務</option>'+sales.map(s=>`<option>${esc(s)}</option>`).join("");
+  svSel.innerHTML='<option value="">全部品項</option>'+SERVICES.map(s=>`<option>${esc(s.key)}</option>`).join("");
+  stSel.value=curSt; slSel.value=curSl; svSel.value=curSv;
+}
+
+function filtered(){
+  const q=$("#q").value.trim().toLowerCase();
+  const fs=$("#fStage").value, fsl=$("#fSales").value, fsv=$("#fSvc").value;
+  let rows=data.filter(r=>{
+    if(fs&&r.stage!==fs) return false;
+    if(fsl&&r.sales!==fsl) return false;
+    if(fsv&&!normServices(r.services).includes(fsv)) return false;
+    if(q){
+      const hay=(r.customer+" "+r.industry+" "+r.sales+" "+r.si+" "+normServices(r.services).join(" ")+" "+r.progress+" "+r.todo).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const stageOrder=Object.fromEntries(STAGES.map((s,i)=>[s.key,i]));
+  if(sortK==="priority"){
+    // 重點優先:先「有品項」,再「階段越後面(數字越大)」,最後客戶名
+    rows.sort((a,b)=>{
+      const sa=normServices(a.services).length?1:0, sb=normServices(b.services).length?1:0;
+      if(sa!==sb) return (sb-sa)*sortDir;                 // 有品項在前
+      const oa=stageOrder[a.stage]??0, ob=stageOrder[b.stage]??0;
+      if(oa!==ob) return (ob-oa)*sortDir;                 // 階段靠後在前
+      return a.customer.localeCompare(b.customer,'zh-Hant');
+    });
+    return rows;
+  }
+  rows.sort((a,b)=>{
+    let av,bv;
+    if(sortK==="stage"){av=stageOrder[a.stage];bv=stageOrder[b.stage];}
+    else if(sortK==="amount"){av=isMoney(a.amount)?1:0;bv=isMoney(b.amount)?1:0;}
+    else if(sortK==="todo"){av=a.todo?1:0;bv=b.todo?1:0;}
+    else {av=(a[sortK]||"").toString();bv=(b[sortK]||"").toString();
+      return av.localeCompare(bv,'zh-Hant')*sortDir;}
+    return (av<bv?-1:av>bv?1:0)*sortDir;
+  });
+  return rows;
+}
+
+function renderTable(){
+  const rows=filtered();
+  $("#cnt").textContent=`顯示 ${rows.length} / ${data.length} 家`;
+  const tb=$("#rows");
+  tb.innerHTML = rows.map(r=>{
+    const main=`<tr class="main ${openId===r.id?'open':''}" data-id="${r.id}">
+      <td><span class="disc">▶</span></td>
+      <td class="cust">${esc(r.customer)}</td>
+      <td>${r.industry?esc(r.industry):'<span class="empty">—</span>'}</td>
+      <td>${r.sales?esc(r.sales):'<span class="empty">—</span>'}</td>
+      <td class="svc-cell">${serviceTags(r.services)}</td>
+      <td>${stagePill(r.stage)}</td>
+      <td class="amt">${isMoney(r.amount)?esc(r.amount):'<span class="empty">—</span>'}</td>
+      <td class="memo-cell">${(()=>{const m=latestMemo(r.progress);return m?`<span class="memo" title="${esc(m.full)}"><span class="memo-dt">${esc(m.dt)}</span>${esc(m.txt)}</span>`:'<span class="empty">—</span>';})()}</td>
+      <td class="todo-cell">${r.todo&&r.todo.trim()
+        ? `<button type="button" class="todo-toggle on" data-todo="${r.id}" title="點擊取消待辦(會清除待辦內容)">有待辦</button>`
+        : `<button type="button" class="todo-toggle" data-todo="${r.id}" title="點擊新增待辦">＋ 待辦</button>`}</td>
+      <td class="row-del-cell"><button class="row-del" data-del="${r.id}" title="刪除「${esc(r.customer)}」" aria-label="刪除 ${esc(r.customer)}">🗑</button></td>
+    </tr>`;
+    if(openId!==r.id) return main;
+    return main+detailRow(r);
+  }).join("");
+}
+
+function detailRow(r){
+  const {events,notes}=parseTimeline(r.progress);
+  const tl = events.length
+    ? `<ul class="timeline">${events.map(e=>`<li><span class="dt">${esc(e.dt)}</span>${esc(e.txt)}</li>`).join("")}</ul>`
+    : `<div class="note-box empty">尚無進度紀錄</div>`;
+  const noteHtml = notes.length?`<div class="note-box" style="margin-top:10px;color:#666">${esc(notes.join("\n"))}</div>`:"";
+  const stageOpts=STAGES.map(s=>`<option ${s.key===r.stage?"selected":""}>${s.key}</option>`).join("");
+  const svcPicker=SERVICES.map(s=>{
+    const on=normServices(r.services).includes(s.key);
+    return `<button type="button" class="svc-opt ${on?'on':''}" data-svc="${s.key}" data-id="${r.id}"
+      style="--sc:${s.color}" aria-pressed="${on}">${esc(s.key)}</button>`;
+  }).join("");
+  return `<tr class="detail"><td colspan="10"><div class="detail-in">
+    <div>
+      <h4>進度時間軸</h4>${tl}${noteHtml}
+      <div class="memo-add">
+        <input type="date" class="memo-add-date" data-id="${r.id}" value="${todayISO()}" min="2026-01-01" max="2026-12-31" title="日期">
+        <input type="text" class="memo-add-txt" data-id="${r.id}" placeholder="新增一筆進度… (Enter 送出)">
+        <button type="button" class="btn primary memo-add-btn" data-id="${r.id}">＋ 新增</button>
+      </div>
+      <details class="fld grow" style="margin-top:12px">
+        <summary style="font-size:11px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.5px">進階：直接編輯全文 (每行 <code>MM/DD - 內容</code>)</summary>
+        <textarea data-f="progress" data-id="${r.id}" style="margin-top:8px">${esc(r.progress)}</textarea>
+      </details>
+    </div>
+    <div>
+      <h4>待辦事項</h4>
+      ${r.todo?`<div class="note-box">${esc(r.todo)}</div>`:'<div class="note-box empty">無</div>'}
+      <div class="fld grow" style="margin-top:10px">
+        <label>編輯待辦</label>
+        <textarea data-f="todo" data-id="${r.id}">${esc(r.todo)}</textarea>
+      </div>
+    </div>
+    <div class="edit-row">
+      <div class="fld"><label>客戶</label><input data-f="customer" data-id="${r.id}" value="${esc(r.customer)}"></div>
+      <div class="fld"><label>產業</label><input data-f="industry" data-id="${r.id}" value="${esc(r.industry)}"></div>
+      <div class="fld"><label>業務</label><input data-f="sales" data-id="${r.id}" value="${esc(r.sales)}"></div>
+      <div class="fld"><label>SI</label><input data-f="si" data-id="${r.id}" value="${esc(r.si)}"></div>
+      <div class="fld"><label>階段</label><select data-f="stage" data-id="${r.id}">${stageOpts}</select></div>
+      <div class="fld"><label>預估金額</label><input data-f="amount" data-id="${r.id}" value="${esc(r.amount)}" placeholder="NT$…"></div>
+      <div class="fld grow" style="grid-column:1/-1"><label>服務品項 (可複選)</label><div class="svc-picker">${svcPicker}</div></div>
+      <div class="fld"><label>階段排期 (甘特圖)</label><button class="btn" style="background:#f0efe9;border-color:#e0ded5;color:#444;padding:5px 12px" data-sched="${r.id}">${(()=>{const n=scheduledPhases(r).length;return n?`已排 ${n}/6 階段`:"設定各階段起訖";})()}</button></div>
+      <button class="del-link" data-del="${r.id}">刪除此客戶</button>
+    </div>
+  </div></td></tr>`;
+}
+
+function renderAll(){ renderKpis(); renderFunnel(); renderBySales(); renderByStage(); fillFilters(); renderTable(); renderGantt(); }
+
+/* ================= GANTT ================= */
+const YEAR=2026;
+const MONTHS=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+const YEAR_START=Date.UTC(YEAR,0,1), YEAR_END=Date.UTC(YEAR,11,31);
+const YEAR_SPAN=YEAR_END-YEAR_START;
+const TODAY_UTC=Date.UTC(2026,6,14); // 2026-07-14
+
+function parseD(s){ if(!s)return null; const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return null;
+  return Date.UTC(+m[1],+m[2]-1,+m[3]); }
+function pct(t){ return Math.max(0,Math.min(100,(t-YEAR_START)/YEAR_SPAN*100)); }
+function fmtShort(s){ const d=parseD(s); if(d==null)return""; const m=s.slice(5,7),day=s.slice(8,10);
+  return `${+m}/${+day}`; }
+function daysBetween(a,b){ const s=parseD(a),e=parseD(b); if(s==null||e==null)return 0;
+  return Math.round((e-s)/86400000)+1; } // 含首尾兩天
+function addDays(dateStr,n){ const s=parseD(dateStr); if(s==null||!(n>=1))return "";
+  const d=new Date(s+(n-1)*86400000); // 含首尾:+ (n-1) 天
+  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,"0"), day=String(d.getUTCDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`; }
+
+const PHASE_COLOR=Object.fromEntries(PHASES.map(p=>[p.key,p.color]));
+const PHASE_FULL=Object.fromEntries(PHASES.map(p=>[p.key,p.full]));
+// does a record have any scheduled phase?
+function scheduledPhases(r){
+  return (r.phases||[]).filter(p=>parseD(p.start)!=null && parseD(p.end)!=null);
+}
+function caseSpan(r){
+  const ps=scheduledPhases(r); if(!ps.length) return null;
+  return {s:Math.min(...ps.map(p=>parseD(p.start))), e:Math.max(...ps.map(p=>parseD(p.end)))};
+}
+
+function renderGantt(){
+  const g=$("#gantt");
+  const scheduled=data.filter(r=>scheduledPhases(r).length>0);
+  const salesList=[...new Set(data.map(r=>r.sales||"未指定"))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+
+  let html=`<div class="g-months"><div class="g-lane-label-col"><span>業務</span><span>客戶</span></div>`+
+    MONTHS.map(m=>`<div class="g-month">${m}</div>`).join("")+`</div>`;
+  html+=`<div class="g-body">`;
+  html+=`<div class="g-gridlines">`+MONTHS.map(()=>`<div class="g-gridcell"></div>`).join("")+`</div>`;
+  const todayPct=pct(TODAY_UTC);
+  html+=`<div class="g-today" style="left:calc(250px + (100% - 250px) * ${todayPct/100})"></div>`;
+
+  salesList.forEach(sl=>{
+    const items=scheduled.filter(r=>(r.sales||"未指定")===sl)
+      .sort((a,b)=>caseSpan(a).s-caseSpan(b).s);
+    if(!items.length) return;
+    // each case = one row (phases won't overlap in time within a case, so no packing needed per case)
+    const laneH=items.length*44+14;
+    html+=`<div class="g-lane">
+      <div class="g-lane-head"><span class="nm">${esc(sl)}</span><span class="ld">${items.length} 案排期</span></div>
+      <div class="g-track" style="min-height:${laneH}px">`;
+    items.forEach(it=>{
+      const svcTitle=normServices(it.services).length?` · ${normServices(it.services).join("、")}`:"";
+      html+=`<div class="g-caserow" data-id="${it.id}" title="${esc(it.customer)}${esc(svcTitle)} — 點擊編輯階段">`;
+      html+=`<span class="g-caselbl">${serviceTagsMini(it.services)}${esc(it.customer)}</span>`;
+      html+=`<span class="g-rowline">`;
+      scheduledPhases(it).forEach(p=>{
+        const s=parseD(p.start), e=parseD(p.end);
+        const left=pct(s), w=Math.max(pct(e)-left,1);
+        const c=PHASE_COLOR[p.key]||"#888";
+        const days=daysBetween(p.start,p.end);
+        const range=`${fmtShort(p.start)}–${fmtShort(p.end)}`;
+        const nm=PHASE_FULL[p.key]||p.key;
+        // wide enough to fit name + date range inside; else compact pill w/ min pixel width
+        const wide=w>=10;
+        const inner = wide
+          ? `${nm} <span class="seg-meta">${range} · ${days}天</span>`
+          : `${nm}`;
+        // 緊湊段:浮標顯示「開始日 (共N天)」,貼左上角避免與相鄰段置中疊字
+        const floatTag = wide ? "" : `<span class="seg-days">${fmtShort(p.start)}·${days}天</span>`;
+        html+=`<div class="g-seg st-${p.status} ${wide?'':'narrow'}" data-id="${it.id}"
+          title="${esc(it.customer)} · ${nm} · ${range} · ${days}天 · ${statusLabel(p.status)}"
+          style="left:${left}%;width:${w}%;--pc:${c}">${inner}${floatTag}</div>`;
+      });
+      html+=`</span></div>`;
+    });
+    html+=`</div></div>`;
+  });
+  html+=`</div>`;
+  if(scheduled.length===0){
+    html+=`<div class="g-body"><div class="g-lane"><div style="padding:26px;color:var(--muted);font-style:italic">
+      還沒有任何案子排期。點下方「待排期」的案子,設定各階段的 2026 起訖日,就會分段畫在時間軸上。</div></div></div>`;
+  }
+  g.innerHTML=html;
+
+  // legend
+  const legend=`<div class="g-legend">`+
+    PHASES.map(p=>`<span><i style="background:${p.color}"></i>${p.full}</span>`).join("")+
+    `<span class="sep"></span>
+     <span><i class="lg-done"></i>已完成</span>
+     <span><i class="lg-active"></i>進行中</span>
+     <span><i class="lg-todo"></i>未開始</span></div>`;
+  $("#gLegend").innerHTML=legend;
+
+  // unscheduled chips
+  const un=data.filter(r=>scheduledPhases(r).length===0);
+  $("#gUnsched").innerHTML=`<h3>待排期 · ${un.length} 案</h3><div class="g-chips">`+
+    (un.length? un.map(r=>{
+      const c=STAGE_COLOR[r.stage]||"#8791a1";
+      return `<button class="g-chip" data-id="${r.id}"><span class="dot" style="background:${c}"></span>${esc(r.customer)}<span style="color:var(--muted);font-size:11px">${esc(r.sales||"—")}</span></button>`;
+    }).join("") : `<span style="color:var(--muted);font-style:italic">全部案子都已排期 🎉</span>`)
+    +`</div>`;
+}
+function statusLabel(s){ return s==="done"?"已完成":s==="active"?"進行中":"未開始"; }
+
+/* ---- phase editor ---- */
+let editId=null;
+function openEditor(id){
+  const r=data.find(x=>x.id===id); if(!r)return; editId=id;
+  r.phases=normPhases(r.phases); // ensure shape
+  $("#geName").textContent=r.customer;
+  $("#geWho").textContent=`業務:${r.sales||"未指定"}　產業:${r.industry||"—"}`;
+  const rows=PHASES.map((pDef,i)=>{
+    const p=r.phases[i];
+    return `<div class="ph-row">
+      <span class="ph-name"><i style="background:${pDef.color}"></i>${pDef.full}</span>
+      <input type="date" data-ph="${i}" data-k="start" min="2026-01-01" max="2026-12-31" value="${esc(p.start)}">
+      <span class="ph-dash">–</span>
+      <input type="date" data-ph="${i}" data-k="end" min="2026-01-01" max="2026-12-31" value="${esc(p.end)}">
+      <select data-ph="${i}" data-k="status">
+        <option value="todo" ${p.status==="todo"?"selected":""}>未開始</option>
+        <option value="active" ${p.status==="active"?"selected":""}>進行中</option>
+        <option value="done" ${p.status==="done"?"selected":""}>已完成</option>
+      </select>
+      <span class="ph-days-wrap"><input type="number" min="1" class="ph-days-in" data-ph="${i}" data-k="days"
+        value="${(p.start&&p.end)?daysBetween(p.start,p.end):""}" placeholder="—"><span class="ph-days-unit">天</span></span>
+    </div>`;
+  }).join("");
+  $("#gePhases").innerHTML=`<div class="ph-head"><span>階段</span><span>開始 (2026)</span><span></span><span>結束</span><span>狀態</span><span>天數</span></div>`+rows+`<div class="ph-total" id="phTotal"></div>`;
+  updatePhaseTotals();
+  $("#gEditor").classList.add("show");
+}
+function phEl(i,k){ return $("#gePhases").querySelector(`[data-ph="${i}"][data-k="${k}"]`); }
+// react to whichever field the user just changed, then reconcile the other two
+function onPhaseInput(e){
+  const t=e.target, i=t.dataset?.ph, k=t.dataset?.k;
+  if(i==null){ updatePhaseTotals(); return; }
+  const startEl=phEl(i,"start"), endEl=phEl(i,"end"), daysEl=phEl(i,"days");
+  const start=startEl.value, end=endEl.value, days=parseInt(daysEl.value,10);
+  if(k==="days"){                       // 使用者填天數 → 有開始就算結束
+    if(start && days>=1) endEl.value=addDays(start,days);
+  }else if(k==="start"){                 // 改開始:優先用天數推結束,否則若有結束就更新天數
+    if(days>=1) endEl.value=addDays(start,days);
+    else if(start&&end) daysEl.value=daysBetween(start,end);
+  }else if(k==="end"){                   // 改結束 → 重算天數
+    if(start&&end) daysEl.value=Math.max(1,daysBetween(start,end));
+  }
+  updatePhaseTotals();
+}
+function updatePhaseTotals(){
+  const t=$("#phTotal"); if(!t)return;
+  let spanStart=null, spanEnd=null, execDays=0;
+  PHASES.forEach((pDef,i)=>{
+    const s=phEl(i,"start")?.value, e=phEl(i,"end")?.value;
+    if(s&&e){
+      const sd=parseD(s), ed=parseD(e);
+      if(sd!=null&&(spanStart==null||sd<spanStart)) spanStart=sd;
+      if(ed!=null&&(spanEnd==null||ed>spanEnd)) spanEnd=ed;
+      if(pDef.key==="執行") execDays=daysBetween(s,e);
+    }
+  });
+  if(spanStart!=null&&spanEnd!=null){
+    const total=Math.round((spanEnd-spanStart)/86400000)+1;
+    t.innerHTML=`專案總跨度 <b>${total} 天</b>`+(execDays?` · 執行階段 <b>${execDays} 天</b>`:"");
+  } else t.textContent="";
+}
+function closeEditor(){ $("#gEditor").classList.remove("show"); editId=null; }
+$("#gePhases").addEventListener("input",onPhaseInput);
+$("#gePhases").addEventListener("change",onPhaseInput);
+$("#geCancel").addEventListener("click",closeEditor);
+$("#gEditor").addEventListener("click",e=>{ if(e.target.id==="gEditor")closeEditor(); });
+$("#geSave").addEventListener("click",()=>{
+  const r=data.find(x=>x.id===editId); if(!r)return;
+  const draft=normPhases(r.phases);
+  $("#gePhases").querySelectorAll("[data-ph]").forEach(el=>{
+    if(el.dataset.k==="days") return; // 天數是輔助欄,不是階段屬性(已同步進 end)
+    draft[+el.dataset.ph][el.dataset.k]=el.value;
+  });
+  for(const p of draft){ if(p.start&&p.end&&p.end<p.start){ alert(`「${p.key}」結束日不能早於開始日`); return; } }
+  r.phases=draft;
+  save(); closeEditor(); renderAll();
+});
+$("#geClear").addEventListener("click",()=>{
+  const r=data.find(x=>x.id===editId); if(!r)return;
+  r.phases=blankPhases(); save(); closeEditor(); renderAll();
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("#gEditor").classList.contains("show"))closeEditor(); });
+
+$("#gantt").addEventListener("click",e=>{ const b=e.target.closest("[data-id]"); if(b)openEditor(b.dataset.id); });
+$("#gUnsched").addEventListener("click",e=>{ const c=e.target.closest(".g-chip"); if(c)openEditor(c.dataset.id); });
+
+/* ---- tabs ---- */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    $("#view-"+t.dataset.view).classList.add("active");
+    if(t.dataset.view==="gantt") renderGantt();
+  });
+});
+
+/* ---------- events ---------- */
+$("#rows").addEventListener("click",e=>{
+  if(e.target.closest("input,textarea,select,button")) return;
+  const tr=e.target.closest("tr.main"); if(!tr) return;
+  const id=tr.dataset.id; openId = openId===id?null:id; renderTable();
+});
+$("#rows").addEventListener("input",e=>{
+  const f=e.target.dataset.f, id=e.target.dataset.id; if(!f) return;
+  const rec=data.find(r=>r.id===id); if(!rec) return;
+  rec[f]=e.target.value;
+  if(f==="stage"){ save(); renderKpis(); renderFunnel(); renderByStage(); fillFilters(); }
+  else{
+    if(f==="todo"){  // 即時同步該列的待辦切換鈕外觀,不整表重繪(避免失焦)
+      const btn=$(`#rows .todo-toggle[data-todo="${id}"]`);
+      if(btn){ const has=!!rec.todo.trim();
+        btn.classList.toggle("on",has); btn.textContent=has?"有待辦":"＋ 待辦"; }
+    }
+    scheduleSave();
+  }
+});
+$("#rows").addEventListener("change",e=>{
+  const f=e.target.dataset.f; if(f&&f!=="stage"){ save(); }
+});
+/* quick-add a progress memo from the detail row */
+function quickAddMemo(id){
+  const rec=data.find(r=>r.id===id); if(!rec) return;
+  const wrap=$(`#rows .memo-add [data-id="${id}"]`)?.closest(".memo-add"); if(!wrap) return;
+  const dateEl=wrap.querySelector(".memo-add-date"), txtEl=wrap.querySelector(".memo-add-txt");
+  if(!appendMemo(rec, dateEl.value, txtEl.value)){ txtEl.focus(); return; }
+  save();
+  txtEl.value="";
+  renderTable();          // 重繪:時間軸多一筆、清單「最新 memo」也更新
+  // 重新聚焦到剛展開那列的輸入框,方便連續輸入
+  const again=$(`#rows .memo-add [data-id="${id}"].memo-add-txt`);
+  if(again) again.focus();
+}
+$("#rows").addEventListener("keydown",e=>{
+  if(e.key==="Enter" && e.target.classList.contains("memo-add-txt")){
+    e.preventDefault(); quickAddMemo(e.target.dataset.id);
+  }
+});
+$("#rows").addEventListener("click",e=>{
+  const addBtn=e.target.closest(".memo-add-btn");
+  if(addBtn){ quickAddMemo(addBtn.dataset.id); return; }
+  const todoBtn=e.target.closest(".todo-toggle");
+  if(todoBtn){
+    const rec=data.find(r=>r.id===todoBtn.dataset.id); if(!rec) return;
+    if(rec.todo&&rec.todo.trim()){
+      if(confirm(`取消「${rec.customer}」的待辦?\n(待辦內容會一併清除)`)){
+        rec.todo=""; save(); renderTable(); renderKpis();
+      }
+    }else{
+      // 還沒有待辦內容 → 展開該列,讓使用者去「編輯待辦」框填寫
+      openId=rec.id; renderTable();
+      const ta=$(`#rows textarea[data-f="todo"][data-id="${rec.id}"]`);
+      if(ta){ ta.scrollIntoView({behavior:"smooth",block:"center"}); ta.focus(); }
+    }
+    return;
+  }
+  const svcBtn=e.target.closest("[data-svc]");
+  if(svcBtn){
+    const rec=data.find(r=>r.id===svcBtn.dataset.id); if(!rec) return;
+    const k=svcBtn.dataset.svc;
+    const cur=new Set(normServices(rec.services));
+    if(cur.has(k)) cur.delete(k); else cur.add(k);
+    // keep canonical order
+    rec.services=SERVICES.map(s=>s.key).filter(x=>cur.has(x));
+    save();
+    svcBtn.classList.toggle("on"); svcBtn.setAttribute("aria-pressed",cur.has(k));
+    // refresh the visible tag cell for this row without collapsing the open detail
+    const mainTr=$(`#rows tr.main[data-id="${rec.id}"]`);
+    if(mainTr){ const cell=mainTr.querySelector(".svc-cell"); if(cell) cell.innerHTML=serviceTags(rec.services); }
+    return;
+  }
+  const sid=e.target.dataset.sched; if(sid){ openEditor(sid); return; }
+  const id=e.target.dataset.del; if(!id) return;
+  const rec=data.find(r=>r.id===id);
+  if(confirm(`確定刪除「${rec?.customer||""}」?`)){
+    data=data.filter(r=>r.id!==id); openId=null; save(); renderAll();
+  }
+});
+let reRenderT;
+function scheduleSave(){
+  save();  // save() 已含防抖 + 雲端寫入
+  clearTimeout(reRenderT);
+  reRenderT=setTimeout(()=>{ renderKpis();renderFunnel();renderBySales();renderByStage(); },500);
+}
+
+["#q","#fStage","#fSales","#fSvc"].forEach(s=>$(s).addEventListener("input",renderTable));
+$("#fSort").addEventListener("change",e=>{ sortK=e.target.value; sortDir=1; renderTable(); });
+document.querySelectorAll("thead th[data-k]").forEach(th=>{
+  th.addEventListener("click",()=>{
+    const k=th.dataset.k;
+    if(sortK===k) sortDir*=-1; else {sortK=k;sortDir=1;}
+    $("#fSort").value=["stage","customer","sales"].includes(k)?k:$("#fSort").value;
+    renderTable();
+  });
+});
+
+$("#addBtn").addEventListener("click",()=>{
+  const id="new_"+data.length+"_"+data.reduce((a,r)=>a+r.customer.length,0);
+  data.unshift({id,customer:"新客戶",industry:"",sales:"",si:"",stage:"未接觸",amount:"",services:[],progress:"",todo:"",phases:blankPhases()});
+  openId=id; $("#q").value=""; $("#fStage").value=""; $("#fSales").value="";
+  save(); renderAll();
+  document.querySelector('.wrap section:last-of-type').scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+/* ---------- export ---------- */
+function download(name,text,type){
+  const blob=new Blob([type.includes("csv")?"﻿"+text:text],{type});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+}
+$("#expJson").addEventListener("click",()=>{
+  const out=data.map(({id,...r})=>r);
+  download("red-team-tracker.json",JSON.stringify(out,null,2),"application/json");
+});
+$("#expCsv").addEventListener("click",()=>{
+  const base=["customer","industry","sales","si","services","stage","amount","progress","todo"];
+  const baseHead=["客戶","產業","業務","SI","品項","階段","預估金額","進度","待辦"];
+  const phaseHead=PHASES.map(p=>`${p.full}(起~訖/狀態)`);
+  const q=v=>`"${String(Array.isArray(v)?v.join(" / "):(v??"")).replace(/"/g,'""')}"`;
+  const phaseCell=(r,i)=>{ const p=normPhases(r.phases)[i];
+    if(!p.start&&!p.end) return ""; return `${p.start}~${p.end} / ${statusLabel(p.status)}`; };
+  const lines=[baseHead.concat(phaseHead).map(q).join(",")].concat(
+    data.map(r=>base.map(c=>q(r[c])).concat(PHASES.map((_,i)=>q(phaseCell(r,i)))).join(","))
+  );
+  download("red-team-tracker.csv",lines.join("\r\n"),"text/csv");
+});
+
+/* ================= Google 登入 + 白名單 ================= */
+function b64urlDecode(s){
+  s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4)s+="=";
+  return decodeURIComponent(escape(atob(s)));
+}
+function parseJwt(token){
+  try{ return JSON.parse(b64urlDecode(token.split(".")[1])); }catch(e){ return null; }
+}
+function gateMsg(msg){ const el=$("#gateMsg"); if(el) el.textContent=msg||""; }
+
+async function onSignedIn(profile){
+  CURRENT_EMAIL = (profile.email||"").toLowerCase();
+  const allow = (CFG.ALLOWED_EMAILS||[]).map(e=>String(e).toLowerCase());
+  if(allow.length && allow.indexOf(CURRENT_EMAIL)===-1){
+    gateMsg("此帳號（"+profile.email+"）未被授權存取。請改用授權帳號，或聯絡管理者。");
+    try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+    return;
+  }
+  // 通過 → 顯示使用者、抓資料、進入主畫面
+  const me=$("#me");
+  if(me) me.innerHTML =
+    (profile.picture?`<img src="${profile.picture}" alt="" referrerpolicy="no-referrer">`:"")+
+    `<span>${esc(profile.name||profile.email)}</span>`+
+    `<button class="logout" id="logout">登出</button>`;
+  gateMsg("載入資料中…");
+  try{
+    await cloudLoad();
+    document.body.classList.add("authed");
+    renderAll();
+    setSync("ok");
+  }catch(e){
+    gateMsg("讀取資料失敗："+e.message+"（請確認 config.js 的 API_URL 與 Apps Script 部署權限）");
+    console.error(e);
+  }
+  const lo=$("#logout");
+  if(lo) lo.addEventListener("click",()=>{
+    try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+    document.body.classList.remove("authed");
+    CURRENT_EMAIL=""; data=[]; gateMsg("已登出");
+    location.reload();
+  });
+}
+
+function initGoogleAuth(){
+  const gate=$("#gate");
+  if(!CFG.GOOGLE_CLIENT_ID || CFG.GOOGLE_CLIENT_ID.indexOf("apps.googleusercontent.com")===-1){
+    gate.classList.remove("loading");
+    gateMsg("尚未設定 GOOGLE_CLIENT_ID（請編輯 config.js）");
+    return;
+  }
+  if(!window.google || !google.accounts || !google.accounts.id){
+    // GIS 還沒載完,稍後再試
+    return setTimeout(initGoogleAuth, 300);
+  }
+  google.accounts.id.initialize({
+    client_id: CFG.GOOGLE_CLIENT_ID,
+    callback: (resp)=>{
+      const p=parseJwt(resp.credential);
+      if(!p){ gateMsg("登入解析失敗,請重試"); return; }
+      onSignedIn(p);
+    },
+    auto_select: true,
+  });
+  google.accounts.id.renderButton($("#gBtn"), {
+    theme:"filled_blue", size:"large", shape:"pill", text:"signin_with", locale:"zh_TW"
+  });
+  google.accounts.id.prompt(); // 嘗試一鍵登入(One Tap)
+  gate.classList.remove("loading");
+}
+initGoogleAuth();
+</script>
+</body>
+</html>
