@@ -8,7 +8,7 @@ window.APP_CONFIG = {
   GOOGLE_CLIENT_ID: "270881497553-725ai68vnllj8g1n3pbdps15q16btcrn.apps.googleusercontent.com",
 
   // 2) Apps Script 部署後的網頁應用程式網址（/exec 結尾）
-  API_URL: "https://script.google.com/macros/s/AKfycbyJ6jgHQFwUIdqkZehRoKZJfufveRCDAevYaxeFtoOoAoTcn40OV3D4-uaCffTPjcTc/exec",
+  API_URL: "https://script.google.com/macros/s/AKfycbx1d1Cd8VCJkomrSBAEr7MUEZzVqHS51EYd_vwNXcUGnv6rwfCve0gg4lxCnY-jTlkz/exec",
 
   // 3) 允許登入的 email（只有清單內的 Google 帳號能看到資料）
   //    留空陣列 [] = 任何 Google 帳號都能進（不建議）
