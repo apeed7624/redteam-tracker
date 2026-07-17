@@ -10,11 +10,8 @@ window.APP_CONFIG = {
   // 2) Apps Script 部署後的網頁應用程式網址（/exec 結尾）
   API_URL: "https://script.google.com/macros/s/AKfycbx1d1Cd8VCJkomrSBAEr7MUEZzVqHS51EYd_vwNXcUGnv6rwfCve0gg4lxCnY-jTlkz/exec",
 
-  // 3) 允許登入的 email（只有清單內的 Google 帳號能看到資料）
-  //    留空陣列 [] = 任何 Google 帳號都能進（不建議）
-  ALLOWED_EMAILS: [
-    "chehsuan.huang@gmail.com",
-    "dylanwu.trender@gmail.com",
-    "labradorchiu@gmail.com",
-  ],
+  // 3) 允許登入的 email
+  //    治本升級後,真正的把關在後端 Code.gs 的 ALLOWED_EMAILS(用 Google 憑證驗證,無法偽造)。
+  //    這裡留空即可,不必把成員 email 公開在 GitHub。加人只需改 Code.gs + 重新部署。
+  ALLOWED_EMAILS: [],
 };
