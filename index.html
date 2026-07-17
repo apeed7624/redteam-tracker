@@ -566,12 +566,13 @@ const RENAME={ "日月光投控":"矽品" };
 
 /* ---------- state (雲端版) ---------- */
 let data = [];                 // 開頁先空,登入成功後從 Apps Script 抓
-let CURRENT_EMAIL = "";        // 登入者 email,寫回時附帶供後端白名單檢查
+let CURRENT_EMAIL = "";        // 登入者 email(僅前端顯示用)
+let ID_TOKEN = "";             // Google 登入憑證(JWT),寫回時附帶供後端驗證 — 無法偽造
 const CFG = window.APP_CONFIG || {};
 
 /* 從 Apps Script 讀全部資料 */
 async function cloudLoad(){
-  const url = CFG.API_URL + (CFG.API_URL.includes("?")?"&":"?") + "email=" + encodeURIComponent(CURRENT_EMAIL);
+  const url = CFG.API_URL + (CFG.API_URL.includes("?")?"&":"?") + "token=" + encodeURIComponent(ID_TOKEN);
   const res = await fetch(url, {method:"GET"});
   const j = await res.json();
   if(!j.ok) throw new Error(j.error || "讀取失敗");
@@ -584,7 +585,7 @@ async function cloudSave(){
   if(savingInFlight){ savePending=true; return; }
   savingInFlight=true; setSync("saving");
   try{
-    const payload = { email: CURRENT_EMAIL, data: data.map(({id,...r})=>({id,...r})) };
+    const payload = { token: ID_TOKEN, data: data.map(({id,...r})=>({id,...r})) };
     const res = await fetch(CFG.API_URL, {
       method:"POST",
       headers:{"Content-Type":"text/plain;charset=utf-8"}, // 避免 CORS preflight
@@ -1247,7 +1248,7 @@ async function onSignedIn(profile){
   if(lo) lo.addEventListener("click",()=>{
     try{ google.accounts.id.disableAutoSelect(); }catch(e){}
     document.body.classList.remove("authed");
-    CURRENT_EMAIL=""; data=[]; gateMsg("已登出");
+    CURRENT_EMAIL=""; ID_TOKEN=""; data=[]; gateMsg("已登出");
     location.reload();
   });
 }
@@ -1268,6 +1269,7 @@ function initGoogleAuth(){
     callback: (resp)=>{
       const p=parseJwt(resp.credential);
       if(!p){ gateMsg("登入解析失敗,請重試"); return; }
+      ID_TOKEN = resp.credential;   // 保留原始憑證,傳給後端驗證
       onSignedIn(p);
     },
     auto_select: true,
