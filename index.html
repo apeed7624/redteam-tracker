@@ -883,7 +883,9 @@ const YEAR=2026;
 const MONTHS=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
 const YEAR_START=Date.UTC(YEAR,0,1), YEAR_END=Date.UTC(YEAR,11,31);
 const YEAR_SPAN=YEAR_END-YEAR_START;
-const TODAY_UTC=Date.UTC(2026,6,14); // 2026-07-14
+// 今天(動態抓當天,用當地日期換算成 UTC 基準,紅線才會對準真正的今天)
+const _now=new Date();
+const TODAY_UTC=Date.UTC(_now.getFullYear(), _now.getMonth(), _now.getDate());
 
 function parseD(s){ if(!s)return null; const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return null;
   return Date.UTC(+m[1],+m[2]-1,+m[3]); }
