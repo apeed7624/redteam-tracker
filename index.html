@@ -428,6 +428,7 @@
           <option value="customer">排序：客戶</option>
           <option value="sales">排序：業務</option>
           <option value="todo">排序：有待辦優先</option>
+          <option value="memo">排序：最新 MEMO(新→舊)</option>
         </select>
         <span class="spacer"></span>
         <span class="chip-count" id="cnt"></span>
@@ -442,7 +443,7 @@
             <th>品項</th>
             <th data-k="stage">階段</th>
             <th data-k="amount">預估金額</th>
-            <th>最新 memo</th>
+            <th data-k="memo">最新 memo</th>
             <th>待辦</th>
             <th style="width:40px"></th>
           </tr></thead>
@@ -803,11 +804,15 @@ function filtered(){
     });
     return rows;
   }
+  // 最新 memo 的日期(M/D)轉成可比較的數字;沒有 memo 排最後
+  const memoVal=r=>{const m=latestMemo(r.progress);if(!m)return -1;
+    const p=m.dt.split("/");return (+p[0])*100+(+p[1]);};
   rows.sort((a,b)=>{
     let av,bv;
     if(sortK==="stage"){av=stageOrder[a.stage];bv=stageOrder[b.stage];}
     else if(sortK==="amount"){av=isMoney(a.amount)?1:0;bv=isMoney(b.amount)?1:0;}
-    else if(sortK==="todo"){av=a.todo?1:0;bv=b.todo?1:0;}
+    else if(sortK==="todo"){av=b.todo?1:0;bv=a.todo?1:0;}      // 有待辦在前
+    else if(sortK==="memo"){av=memoVal(b);bv=memoVal(a);}      // 日期新在前
     else {av=(a[sortK]||"").toString();bv=(b[sortK]||"").toString();
       return av.localeCompare(bv,'zh-Hant')*sortDir;}
     return (av<bv?-1:av>bv?1:0)*sortDir;
@@ -1191,7 +1196,7 @@ document.querySelectorAll("thead th[data-k]").forEach(th=>{
   th.addEventListener("click",()=>{
     const k=th.dataset.k;
     if(sortK===k) sortDir*=-1; else {sortK=k;sortDir=1;}
-    $("#fSort").value=["stage","customer","sales"].includes(k)?k:$("#fSort").value;
+    $("#fSort").value=["stage","customer","sales","memo"].includes(k)?k:$("#fSort").value;
     renderTable();
   });
 });
