@@ -642,6 +642,16 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function isMoney(a){ return a && a!=="N/A" && /\d/.test(a); }
 
+/* 金額千分位:只對 5 位數以上的數字段加逗號(2000000 → 2,000,000),
+   不動 "40W"、日期等短數字;已有逗號的先還原再重新分組 */
+function fmtAmt(a){
+  if(!a) return a||"";
+  return String(a).replace(/\d[\d,]*\d|\d/g, s=>{
+    const n=s.replace(/,/g,"");
+    return n.length>=5 ? n.replace(/\B(?=(\d{3})+(?!\d))/g,",") : s;
+  });
+}
+
 /* parse "MM/DD - text" lines out of progress */
 function parseTimeline(txt){
   if(!txt) return {events:[],notes:[]};
@@ -817,7 +827,7 @@ function renderTable(){
       <td>${r.sales?esc(r.sales):'<span class="empty">—</span>'}</td>
       <td class="svc-cell">${serviceTags(r.services)}</td>
       <td>${stagePill(r.stage)}</td>
-      <td class="amt">${isMoney(r.amount)?esc(r.amount):'<span class="empty">—</span>'}</td>
+      <td class="amt">${isMoney(r.amount)?esc(fmtAmt(r.amount)):'<span class="empty">—</span>'}</td>
       <td class="memo-cell">${(()=>{const m=latestMemo(r.progress);return m?`<span class="memo" title="${esc(m.full)}"><span class="memo-dt">${esc(m.dt)}</span>${esc(m.txt)}</span>`:'<span class="empty">—</span>';})()}</td>
       <td class="todo-cell">${r.todo&&r.todo.trim()
         ? `<button type="button" class="todo-toggle on" data-todo="${r.id}" title="點擊取消待辦(會清除待辦內容)">有待辦</button>`
@@ -868,7 +878,7 @@ function detailRow(r){
       <div class="fld"><label>業務</label><input data-f="sales" data-id="${r.id}" value="${esc(r.sales)}"></div>
       <div class="fld"><label>SI</label><input data-f="si" data-id="${r.id}" value="${esc(r.si)}"></div>
       <div class="fld"><label>階段</label><select data-f="stage" data-id="${r.id}">${stageOpts}</select></div>
-      <div class="fld"><label>預估金額</label><input data-f="amount" data-id="${r.id}" value="${esc(r.amount)}" placeholder="NT$…"></div>
+      <div class="fld"><label>預估金額</label><input data-f="amount" data-id="${r.id}" value="${esc(fmtAmt(r.amount))}" placeholder="NT$…"></div>
       <div class="fld grow" style="grid-column:1/-1"><label>服務品項 (可複選)</label><div class="svc-picker">${svcPicker}</div></div>
       <div class="fld"><label>階段排期 (甘特圖)</label><button class="btn" style="background:#f0efe9;border-color:#e0ded5;color:#444;padding:5px 12px" data-sched="${r.id}">${(()=>{const n=scheduledPhases(r).length;return n?`已排 ${n}/6 階段`:"設定各階段起訖";})()}</button></div>
       <button class="del-link" data-del="${r.id}">刪除此客戶</button>
@@ -1103,7 +1113,12 @@ $("#rows").addEventListener("input",e=>{
   }
 });
 $("#rows").addEventListener("change",e=>{
-  const f=e.target.dataset.f; if(f&&f!=="stage"){ save(); }
+  const f=e.target.dataset.f; if(!f||f==="stage") return;
+  if(f==="amount"){  // 離開欄位時把金額正規化成千分位,存檔的也是格式化後的值
+    const rec=data.find(r=>r.id===e.target.dataset.id);
+    if(rec){ rec.amount=fmtAmt(rec.amount); e.target.value=rec.amount; renderTable(); }
+  }
+  save();
 });
 /* quick-add a progress memo from the detail row */
 function quickAddMemo(id){
