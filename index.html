@@ -297,7 +297,7 @@
 
   /* phase editor table */
   .ph-table{margin:4px 0 6px}
-  .ph-head,.ph-row{display:grid;grid-template-columns:78px 1fr 12px 1fr 72px 62px;gap:7px;align-items:center}
+  .ph-head,.ph-row{display:grid;grid-template-columns:78px 1fr 12px 1fr 72px 82px;gap:7px;align-items:center}
   .ph-name{white-space:nowrap}
   .ph-head{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
     font-weight:600;padding:0 2px 6px}
@@ -307,7 +307,7 @@
     border:1px solid #d9d9d2;border-radius:6px;font-variant-numeric:tabular-nums;
     -moz-appearance:textfield;background:#fff}
   .ph-days-in::-webkit-outer-spin-button,.ph-days-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  .ph-days-unit{font-size:11.5px;color:var(--muted)}
+  .ph-days-unit{font-size:11.5px;color:var(--muted);white-space:nowrap}
   .ph-total{margin-top:10px;padding-top:10px;border-top:1px dashed #e0ded5;font-size:13px;color:#444;
     text-align:right;font-variant-numeric:tabular-nums}
   .ph-total b{color:var(--red-dim)}
@@ -898,6 +898,19 @@ const YEAR=2026;
 const MONTHS=["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
 const YEAR_START=Date.UTC(YEAR,0,1), YEAR_END=Date.UTC(YEAR,11,31);
 const YEAR_SPAN=YEAR_END-YEAR_START;
+const DAY_MS=86400000;
+// 依行政院人事行政總處 115 年辦公日曆表；僅列出落在週一至週五的放假日。
+// https://www.dgpa.gov.tw/information?pid=12685&uid=30
+const TAIWAN_HOLIDAYS_2026=new Set([
+  "2026-01-01",
+  "2026-02-16","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-27",
+  "2026-04-03","2026-04-06",
+  "2026-05-01",
+  "2026-06-19",
+  "2026-09-25","2026-09-28",
+  "2026-10-09","2026-10-26",
+  "2026-12-25",
+]);
 // 今天(動態抓當天,用當地日期換算成 UTC 基準,紅線才會對準真正的今天)
 const _now=new Date();
 const TODAY_UTC=Date.UTC(_now.getFullYear(), _now.getMonth(), _now.getDate());
@@ -907,12 +920,29 @@ function parseD(s){ if(!s)return null; const m=s.match(/^(\d{4})-(\d{2})-(\d{2})
 function pct(t){ return Math.max(0,Math.min(100,(t-YEAR_START)/YEAR_SPAN*100)); }
 function fmtShort(s){ const d=parseD(s); if(d==null)return""; const m=s.slice(5,7),day=s.slice(8,10);
   return `${+m}/${+day}`; }
-function daysBetween(a,b){ const s=parseD(a),e=parseD(b); if(s==null||e==null)return 0;
-  return Math.round((e-s)/86400000)+1; } // 含首尾兩天
-function addDays(dateStr,n){ const s=parseD(dateStr); if(s==null||!(n>=1))return "";
-  const d=new Date(s+(n-1)*86400000); // 含首尾:+ (n-1) 天
-  const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,"0"), day=String(d.getUTCDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`; }
+function fmtISO(t){
+  const d=new Date(t), y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,"0"), day=String(d.getUTCDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function isWorkday(t){
+  const weekday=new Date(t).getUTCDay();
+  return weekday!==0 && weekday!==6 && !TAIWAN_HOLIDAYS_2026.has(fmtISO(t));
+}
+function countWorkdays(s,e){
+  if(s==null||e==null||e<s)return 0;
+  let count=0;
+  for(let t=s;t<=e;t+=DAY_MS) if(isWorkday(t)) count++;
+  return count;
+}
+function workdaysBetween(a,b){ return countWorkdays(parseD(a),parseD(b)); } // 含首尾的工作日
+function addWorkdays(dateStr,n){
+  let t=parseD(dateStr), remaining=Math.trunc(Number(n));
+  if(t==null||remaining<1)return "";
+  while(true){
+    if(isWorkday(t) && --remaining===0) return fmtISO(t);
+    t+=DAY_MS;
+  }
+}
 
 const PHASE_COLOR=Object.fromEntries(PHASES.map(p=>[p.key,p.color]));
 const PHASE_FULL=Object.fromEntries(PHASES.map(p=>[p.key,p.full]));
@@ -955,18 +985,18 @@ function renderGantt(){
         const s=parseD(p.start), e=parseD(p.end);
         const left=pct(s), w=Math.max(pct(e)-left,1);
         const c=PHASE_COLOR[p.key]||"#888";
-        const days=daysBetween(p.start,p.end);
+        const days=workdaysBetween(p.start,p.end);
         const range=`${fmtShort(p.start)}–${fmtShort(p.end)}`;
         const nm=PHASE_FULL[p.key]||p.key;
         // wide enough to fit name + date range inside; else compact pill w/ min pixel width
         const wide=w>=10;
         const inner = wide
-          ? `${nm} <span class="seg-meta">${range} · ${days}天</span>`
+          ? `${nm} <span class="seg-meta">${range} · ${days}工作天</span>`
           : `${nm}`;
         // 緊湊段:浮標顯示「開始日 (共N天)」,貼左上角避免與相鄰段置中疊字
-        const floatTag = wide ? "" : `<span class="seg-days">${fmtShort(p.start)}·${days}天</span>`;
+        const floatTag = wide ? "" : `<span class="seg-days">${fmtShort(p.start)}·${days}工作天</span>`;
         html+=`<div class="g-seg st-${p.status} ${wide?'':'narrow'}" data-id="${it.id}"
-          title="${esc(it.customer)} · ${nm} · ${range} · ${days}天 · ${statusLabel(p.status)}"
+          title="${esc(it.customer)} · ${nm} · ${range} · ${days}工作天 · ${statusLabel(p.status)}"
           style="left:${left}%;width:${w}%;--pc:${c}">${inner}${floatTag}</div>`;
       });
       html+=`</span></div>`;
@@ -1020,10 +1050,10 @@ function openEditor(id){
         <option value="done" ${p.status==="done"?"selected":""}>已完成</option>
       </select>
       <span class="ph-days-wrap"><input type="number" min="1" class="ph-days-in" data-ph="${i}" data-k="days"
-        value="${(p.start&&p.end)?daysBetween(p.start,p.end):""}" placeholder="—"><span class="ph-days-unit">天</span></span>
+        value="${(p.start&&p.end)?workdaysBetween(p.start,p.end):""}" placeholder="—"><span class="ph-days-unit">工作天</span></span>
     </div>`;
   }).join("");
-  $("#gePhases").innerHTML=`<div class="ph-head"><span>階段</span><span>開始 (2026)</span><span></span><span>結束</span><span>狀態</span><span>天數</span></div>`+rows+`<div class="ph-total" id="phTotal"></div>`;
+  $("#gePhases").innerHTML=`<div class="ph-head"><span>階段</span><span>開始 (2026)</span><span></span><span>結束</span><span>狀態</span><span>工作天數</span></div>`+rows+`<div class="ph-total" id="phTotal"></div>`;
   updatePhaseTotals();
   $("#gEditor").classList.add("show");
 }
@@ -1034,31 +1064,31 @@ function onPhaseInput(e){
   if(i==null){ updatePhaseTotals(); return; }
   const startEl=phEl(i,"start"), endEl=phEl(i,"end"), daysEl=phEl(i,"days");
   const start=startEl.value, end=endEl.value, days=parseInt(daysEl.value,10);
-  if(k==="days"){                       // 使用者填天數 → 有開始就算結束
-    if(start && days>=1) endEl.value=addDays(start,days);
-  }else if(k==="start"){                 // 改開始:優先用天數推結束,否則若有結束就更新天數
-    if(days>=1) endEl.value=addDays(start,days);
-    else if(start&&end) daysEl.value=daysBetween(start,end);
-  }else if(k==="end"){                   // 改結束 → 重算天數
-    if(start&&end) daysEl.value=Math.max(1,daysBetween(start,end));
+  if(k==="days"){                       // 使用者填工作天數 → 有開始就算結束
+    if(start && days>=1) endEl.value=addWorkdays(start,days);
+  }else if(k==="start"){                 // 改開始:優先用工作天數推結束,否則若有結束就更新工作天數
+    if(days>=1) endEl.value=addWorkdays(start,days);
+    else if(start&&end) daysEl.value=workdaysBetween(start,end);
+  }else if(k==="end"){                   // 改結束 → 重算工作天數
+    if(start&&end) daysEl.value=workdaysBetween(start,end);
   }
   updatePhaseTotals();
 }
 function updatePhaseTotals(){
   const t=$("#phTotal"); if(!t)return;
-  let spanStart=null, spanEnd=null, execDays=0;
+  let spanStart=null, spanEnd=null, execDays=null;
   PHASES.forEach((pDef,i)=>{
     const s=phEl(i,"start")?.value, e=phEl(i,"end")?.value;
     if(s&&e){
       const sd=parseD(s), ed=parseD(e);
       if(sd!=null&&(spanStart==null||sd<spanStart)) spanStart=sd;
       if(ed!=null&&(spanEnd==null||ed>spanEnd)) spanEnd=ed;
-      if(pDef.key==="執行") execDays=daysBetween(s,e);
+      if(pDef.key==="執行") execDays=workdaysBetween(s,e);
     }
   });
   if(spanStart!=null&&spanEnd!=null){
-    const total=Math.round((spanEnd-spanStart)/86400000)+1;
-    t.innerHTML=`專案總跨度 <b>${total} 天</b>`+(execDays?` · 執行階段 <b>${execDays} 天</b>`:"");
+    const total=countWorkdays(spanStart,spanEnd);
+    t.innerHTML=`專案總跨度 <b>${total} 工作天</b>`+(execDays!=null?` · 執行階段 <b>${execDays} 工作天</b>`:"");
   } else t.textContent="";
 }
 function closeEditor(){ $("#gEditor").classList.remove("show"); editId=null; }
