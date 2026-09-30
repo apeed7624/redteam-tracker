@@ -527,6 +527,7 @@ const STAGES = [
   {key:"SOW/法務", color:"#c98a2b"},
   {key:"得標",    color:"#2f9e63"},
   {key:"演練中",  color:"#c0392b"},
+  {key:"結案",    color:"#4a4a4a"},
 ];
 const STAGE_COLOR = Object.fromEntries(STAGES.map(s=>[s.key,s.color]));
 
@@ -534,6 +535,7 @@ const STAGE_COLOR = Object.fromEntries(STAGES.map(s=>[s.key,s.color]));
 function normStage(raw){
   if(!raw) return "未接觸";
   const s = String(raw);
+  if(/結案|完成|已交付|結束/.test(s)) return "結案";
   if(/演練/.test(s)) return "演練中";
   if(/得標/.test(s)) return "得標";
   if(/SOW|法務|定稿/.test(s)) return "SOW/法務";
@@ -722,7 +724,7 @@ function serviceTags(list){
 function renderKpis(){
   const total=data.length;
   const active=data.filter(r=>!["未接觸","服務介紹"].includes(r.stage)).length;
-  const won=data.filter(r=>["得標","演練中"].includes(r.stage)).length;
+  const won=data.filter(r=>["得標","演練中","結案"].includes(r.stage)).length;
   const running=data.filter(r=>r.stage==="演練中").length;
   const todos=data.filter(r=>r.todo&&r.todo.trim()).length;
   const k=[
